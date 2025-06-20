@@ -1,0 +1,81 @@
+Environment:
+	Python: 3.7.11
+	PyTorch: 1.11.0
+	Torchvision: 0.12.0
+	CUDA: 11.3
+	CUDNN: 8200
+	NumPy: 1.21.6
+	PIL: 9.4.0
+=======hyper-parameter used========
+==========================================
+algorithm:MLDG
+alpha:1
+anneal_iters:500
+batch_size:32
+beta:1
+beta1:0.5
+bottleneck:256
+checkpoint_freq:3
+classifier:linear
+data_file:
+dataset:office
+data_dir:/raid/infolab/bhavyakohli/bhavyaaa/datasets/office31/
+dis_hidden:256
+disttype:2-norm
+gpu_id:0
+groupdro_eta:1
+inner_lr:0.01
+lam:1
+layer:bn
+lr:0.01
+lr_decay:0.75
+lr_decay1:1.0
+lr_decay2:1.0
+lr_gamma:0.0003
+max_epoch:10
+mixupalpha:0.2
+mldg_beta:5.0
+mmd_gamma:1
+momentum:0.9
+net:resnet18
+N_WORKERS:4
+rsc_f_drop_factor:0.3333333333333333
+rsc_b_drop_factor:0.3333333333333333
+save_model_every_checkpoint:False
+schuse:False
+schusech:cos
+seed:0
+split_style:strat
+task:img_dg
+tau:1
+test_envs:[2]
+output:/raid/infolab/bhavyakohli/bhavyaaa/testres/MLDG-office31-b5
+weight_decay:0.0005
+steps_per_epoch:100
+domains:['amazon', 'dslr', 'webcam']
+img_dataset:{'office': ['amazon', 'dslr', 'webcam'], 'office-caltech': ['amazon', 'dslr', 'webcam', 'caltech'], 'office-home': ['Art', 'Clipart', 'Product', 'Real_World'], 'PACS': ['art_painting', 'cartoon', 'photo', 'sketch'], 'dg5': ['mnist', 'mnist_m', 'svhn', 'syn', 'usps'], 'VLCS': ['Caltech101', 'LabelMe', 'SUN09', 'VOC2007']}
+input_shape:(3, 224, 224)
+num_classes:31
+domain_num:3
+
+===========start training===========
+===========epoch 0===========
+total_loss:4.8209
+train_acc:0.0702,valid_acc:0.0530,target_acc:0.0428
+total cost time: 29.0759
+===========epoch 3===========
+total_loss:2.6677
+train_acc:0.0440,valid_acc:0.0318,target_acc:0.0403
+total cost time: 89.5812
+===========epoch 6===========
+total_loss:0.3853
+train_acc:0.0309,valid_acc:0.0318,target_acc:0.0365
+total cost time: 149.8652
+manually descrease lr
+manually descrease lr
+===========epoch 9===========
+total_loss:0.0447
+train_acc:0.0292,valid_acc:0.0268,target_acc:0.0390
+total cost time: 209.9304
+valid acc: 0.0530
+DG result: 0.0428
