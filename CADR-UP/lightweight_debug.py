@@ -1,0 +1,240 @@
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import DataLoader, Subset
+from torchvision import datasets, transforms, models
+import numpy as np
+import random
+
+# --------------------------
+# 1️⃣ Reproducibility
+# --------------------------
+torch.manual_seed(0)
+np.random.seed(0)
+random.seed(0)
+
+# --------------------------
+# 2️⃣ Domains & Config
+# --------------------------
+domains = ['art_painting', 'cartoon', 'photo', 'sketch']
+domain_to_idx = {d: i for i, d in enumerate(domains)}
+n_classes = 7
+n_domains = len(domains)
+
+# --------------------------
+# 3️⃣ Transforms & Loaders (lightweight)
+# --------------------------
+transform = transforms.Compose([
+    transforms.Resize((128, 128)),   # Smaller image for speed
+    transforms.ToTensor(),
+    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+])
+
+# Use only 100 samples per domain for debugging
+def get_small_subset(dataset, n=100):
+    indices = list(range(len(dataset)))
+    random.shuffle(indices)
+    return Subset(dataset, indices[:n])
+
+domain_datasets = {}
+domain_loaders = {}
+for d in domains:
+    full_ds = datasets.ImageFolder(f'../datasets/PACS/pacs_data/{d}', transform=transform)
+    subset_ds = get_small_subset(full_ds, n=100)
+    domain_datasets[d] = subset_ds
+    domain_loaders[d] = DataLoader(subset_ds, batch_size=8, shuffle=True, num_workers=0)
+
+# --------------------------
+# 4️⃣ Feature Extractor for MMD
+# --------------------------
+class FeatureStats(nn.Module):
+    def __init__(self):
+        super().__init__()
+        resnet = models.resnet18(pretrained=True)
+        self.features = nn.Sequential(*list(resnet.children())[:-1])
+    def forward(self, x):
+        x = self.features(x)
+        return x.view(x.size(0), -1)
+
+feature_extractor = FeatureStats().eval()
+
+def extract_domain_features(loader, feature_extractor, n_batches=2):
+    features = []
+    with torch.no_grad():
+        for i, (x, _) in enumerate(loader):
+            if i >= n_batches:
+                break
+            feats = feature_extractor(x).numpy()
+            features.append(feats)
+    return np.concatenate(features, axis=0)
+
+domain_features = {d: extract_domain_features(domain_loaders[d], feature_extractor) for d in domains}
+
+def compute_mmd(X, Y):
+    XX = np.dot(X, X.T)
+    YY = np.dot(Y, Y.T)
+    XY = np.dot(X, Y.T)
+    return XX.mean() + YY.mean() - 2 * XY.mean()
+
+domain_graph = np.zeros((n_domains, n_domains))
+for i, d1 in enumerate(domains):
+    for j, d2 in enumerate(domains):
+        if i != j:
+            domain_graph[i, j] = compute_mmd(domain_features[d1], domain_features[d2])
+print("\nDomain Graph (MMD):\n", domain_graph)
+
+# --------------------------
+# 5️⃣ CADRUP Model (unchanged)
+# --------------------------
+class SharedBackbone(nn.Module):
+    def __init__(self, out_dim=128):  # smaller feat dim for debugging
+        super().__init__()
+        resnet = models.resnet18(pretrained=True)
+        self.features = nn.Sequential(*list(resnet.children())[:-1])
+        self.fc = nn.Linear(resnet.fc.in_features, out_dim)
+    def forward(self, x):
+        x = self.features(x)
+        x = x.view(x.size(0), -1)
+        return self.fc(x)
+
+class CausalHead(nn.Module):
+    def __init__(self, in_dim, n_classes):
+        super().__init__()
+        self.fc = nn.Linear(in_dim, n_classes)
+    def forward(self, x):
+        return self.fc(x)
+
+class StyleHead(nn.Module):
+    def __init__(self, in_dim, n_domains):
+        super().__init__()
+        self.fc = nn.Linear(in_dim, n_domains)
+    def forward(self, x):
+        return self.fc(x)
+
+class Expert(nn.Module):
+    def __init__(self, in_dim, n_classes):
+        super().__init__()
+        self.fc1 = nn.Linear(in_dim, 64)  # smaller for speed
+        self.fc2 = nn.Linear(64, n_classes)
+    def forward(self, x):
+        x = F.relu(self.fc1(x))
+        return self.fc2(x)
+
+class GatingNetwork(nn.Module):
+    def __init__(self, in_dim, n_experts):
+        super().__init__()
+        self.fc = nn.Linear(in_dim, n_experts)
+    def forward(self, x, uncertainties):
+        gate_logits = self.fc(x)
+        gate_logits = gate_logits - uncertainties
+        return F.softmax(gate_logits, dim=1)
+
+class CADRUP(nn.Module):
+    def __init__(self, n_classes, n_domains, n_experts=2, feat_dim=128):
+        super().__init__()
+        self.backbone = SharedBackbone(out_dim=feat_dim)
+        self.causal_head = CausalHead(feat_dim, n_classes)
+        self.style_head = StyleHead(feat_dim, n_domains)
+        self.experts = nn.ModuleList([Expert(feat_dim, n_classes) for _ in range(n_experts)])
+        self.gating = GatingNetwork(feat_dim, n_experts)
+        self.n_experts = n_experts
+
+    def forward(self, x, mc_dropout=False, n_mc=3):
+        feats = self.backbone(x)
+        causal_logits = self.causal_head(feats)
+        style_logits = self.style_head(feats)
+
+        if mc_dropout:
+            self.train()
+            for m in self.modules():
+                if isinstance(m, nn.BatchNorm2d):
+                    m.eval()
+
+            expert_outputs = []
+            for _ in range(n_mc):
+                outputs = torch.stack([F.softmax(expert(feats), dim=1) for expert in self.experts])
+                expert_outputs.append(outputs)
+            expert_outputs = torch.stack(expert_outputs)
+
+            mean_outputs = expert_outputs.mean(0)
+            std_outputs = expert_outputs.std(0).mean(-1)
+            uncertainties = std_outputs.T
+            experts_stack = mean_outputs.permute(1, 0, 2)
+        else:
+            experts_stack = torch.stack([F.softmax(expert(feats), dim=1) for expert in self.experts], dim=1)
+            uncertainties = torch.zeros(x.size(0), self.n_experts)
+
+        gates = self.gating(feats, uncertainties)
+        final_output = (gates.unsqueeze(-1) * experts_stack).sum(dim=1)
+
+        return final_output, causal_logits, style_logits, uncertainties
+
+# --------------------------
+# 6️⃣ Pairwise style loss
+# --------------------------
+def compute_pairwise_style_loss(model, x1, x2):
+    feats1 = model.backbone(x1)
+    feats2 = model.backbone(x2)
+    style_logits1 = model.style_head(feats1).mean(0)
+    style_logits2 = model.style_head(feats2).mean(0)
+    return F.mse_loss(style_logits1, style_logits2)
+
+# --------------------------
+# 7️⃣ Training loop (lightweight)
+# --------------------------
+device = torch.device('cpu')
+model = CADRUP(n_classes=n_classes, n_domains=n_domains).to(device)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+ce_loss = nn.CrossEntropyLoss()
+
+train_domains = ['art_painting', 'cartoon', 'photo']
+test_domain = 'sketch'
+
+for epoch in range(2):  # only 2 epochs for quick test
+    model.train()
+    for d in train_domains:
+        for x, y in domain_loaders[d]:
+            x, y = x.to(device), y.to(device)
+            domain_labels = torch.full((x.size(0),), domain_to_idx[d], dtype=torch.long, device=device)
+            out, causal_logits, style_logits, uncertainties = model(x)
+
+            loss_cls = ce_loss(out, y)
+            loss_causal = ce_loss(causal_logits, y)
+            loss_style = ce_loss(style_logits, domain_labels)
+            loss = loss_cls + 0.5 * loss_causal + 0.2 * loss_style
+
+            other_domains = [dd for dd in train_domains if dd != d]
+            if other_domains:
+                d2 = random.choice(other_domains)
+                try:
+                    x2, _ = next(iter(domain_loaders[d2]))
+                except StopIteration:
+                    continue
+                x2 = x2.to(device)
+                style_loss = compute_pairwise_style_loss(model, x, x2)
+                i, j = domain_to_idx[d], domain_to_idx[d2]
+                sim_weight = np.exp(-domain_graph[i, j])
+                loss += 0.1 * sim_weight * style_loss
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+    print(f"Epoch {epoch} done.")
+
+# --------------------------
+# 8️⃣ Quick test
+# --------------------------
+model.eval()
+correct, total = 0, 0
+uncertainties_list = []
+with torch.no_grad():
+    for x, y in domain_loaders[test_domain]:
+        x, y = x.to(device), y.to(device)
+        out, _, _, uncertainties = model(x, mc_dropout=True, n_mc=3)
+        preds = out.argmax(1)
+        correct += (preds == y).sum().item()
+        total += y.size(0)
+        uncertainties_list.append(uncertainties.numpy())
+
+print(f"Test accuracy on {test_domain}: {correct / total:.4f}")
+print(f"Mean uncertainty: {np.mean(np.concatenate(uncertainties_list)):.4f}")

@@ -1,0 +1,102 @@
+PACS run (w/o dropout)
+    Config:
+        PACS
+        train_domains = ['art_painting', 'cartoon', 'photo']
+        lr = 1e-4
+    Domain Graph (MMD):
+        [[  0.          89.61938477  53.14923096]
+        [ 89.61938477   0.         120.85357666]
+        [ 53.14916992 120.85351562   0.        ]]
+    Training:
+        Epoch 0 done.
+        Epoch 1 done.
+        Epoch 2 done.
+        Epoch 3 done.
+        Epoch 4 done.
+        Epoch 5 done.
+        Epoch 6 done.
+        Epoch 7 done.
+        Epoch 8 done.
+        Epoch 9 done.
+    Testing:
+        Test accuracy on sketch: 0.5958
+        Mean uncertainty: 0.0000
+
+Office31 run (w/o dropout)
+    Config:
+        office31
+        train_domains = ['amazon', 'dslr']
+        lr = 1e-4
+    Domain Graph (MMD):
+        [[ 0.         53.34765625]
+        [53.34765625  0.        ]]
+    Training:
+        Epoch 0 done. Loss =  tensor(3.7699, device='cuda:0', grad_fn=<AddBackward0>)
+        Epoch 1 done. Loss =  tensor(3.0976, device='cuda:0', grad_fn=<AddBackward0>)
+        Epoch 2 done. Loss =  tensor(2.8843, device='cuda:0', grad_fn=<AddBackward0>)
+        Epoch 3 done. Loss =  tensor(2.7349, device='cuda:0', grad_fn=<AddBackward0>)
+        Epoch 4 done. Loss =  tensor(2.7389, device='cuda:0', grad_fn=<AddBackward0>)
+        Epoch 5 done. Loss =  tensor(2.7086, device='cuda:0', grad_fn=<AddBackward0>)
+        Epoch 6 done. Loss =  tensor(2.7217, device='cuda:0', grad_fn=<AddBackward0>)
+        Epoch 7 done. Loss =  tensor(2.7609, device='cuda:0', grad_fn=<AddBackward0>)
+        Epoch 8 done. Loss =  tensor(2.7198, device='cuda:0', grad_fn=<AddBackward0>)
+        Epoch 9 done. Loss =  tensor(2.7333, device='cuda:0', grad_fn=<AddBackward0>)
+    Testing:
+        Test accuracy on webcam: 0.9031
+        Mean uncertainty: 0.0000
+
+Office31 run (w/ dropout)
+    Config:
+        office31
+        train_domains = ['amazon', 'dslr']
+        lr = 1e-4
+    Domain Graph (MMD):
+        [[ 0.         53.34765625]
+        [53.34765625  0.        ]]
+    Training
+        Epoch 0 done. Loss =  tensor(4.1246, device='cuda:0', grad_fn=<AddBackward0>)
+        Epoch 1 done. Loss =  tensor(3.6056, device='cuda:0', grad_fn=<AddBackward0>)
+        Epoch 2 done. Loss =  tensor(3.3672, device='cuda:0', grad_fn=<AddBackward0>)
+        Epoch 3 done. Loss =  tensor(3.0799, device='cuda:0', grad_fn=<AddBackward0>)
+        Epoch 4 done. Loss =  tensor(2.9555, device='cuda:0', grad_fn=<AddBackward0>)
+        Epoch 5 done. Loss =  tensor(2.9042, device='cuda:0', grad_fn=<AddBackward0>)
+        Epoch 6 done. Loss =  tensor(2.8609, device='cuda:0', grad_fn=<AddBackward0>)
+        Epoch 7 done. Loss =  tensor(2.8730, device='cuda:0', grad_fn=<AddBackward0>)
+        Epoch 8 done. Loss =  tensor(2.8658, device='cuda:0', grad_fn=<AddBackward0>)
+        Epoch 9 done. Loss =  tensor(2.8229, device='cuda:0', grad_fn=<AddBackward0>)
+    Testing
+        Test accuracy on webcam: 0.8994
+        Mean uncertainty: 0.0144
+
+NEW CADR-UP
+
+    Office31
+        Test accuracy on webcam (seen classes): 0.8592
+        Mean uncertainty on webcam (seen classes): 0.0148
+        Mean uncertainty on webcam (unseen class 30): 0.0156
+
+        Test accuracy on dslr (seen classes): 0.8841
+        Mean uncertainty on dslr (seen classes): 0.0153
+        Mean uncertainty on dslr (unseen class 30): 0.0165
+
+        Test accuracy on amazon (seen classes): 0.4206
+        Mean uncertainty on amazon (seen classes): 0.0143
+        Mean uncertainty on amazon (unseen class 30): 0.0138
+
+    PACS
+        Test accuracy on sketch (seen classes): 0.6365
+        Mean uncertainty on sketch (seen classes): 0.0451
+        Mean uncertainty on sketch (unseen class 6): 0.0509
+
+        Test accuracy on photo (seen classes): 0.8611
+        Mean uncertainty on photo (seen classes): 0.0294
+        Mean uncertainty on photo (unseen class 6): 0.0348
+
+    Terra-Incognita
+        Test accuracy on location_100 (seen classes): 0.2015
+        Mean uncertainty on location_100 (seen classes): 0.0362
+        Mean uncertainty on location_100 (unseen class 9): 0.0351
+
+        Test accuracy on location_38 (seen classes): 0.2369
+        Mean uncertainty on location_38 (seen classes): 0.0333
+        Mean uncertainty on location_38 (unseen class 9): 0.0348
